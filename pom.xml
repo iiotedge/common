@@ -7,8 +7,8 @@
         <groupId>com.iotmining</groupId>
         <artifactId>iotmining-technology</artifactId>
         <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
-
 
     <artifactId>common</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -16,14 +16,32 @@
     <name>IoTMining - Collection of server common</name>
 
     <modules>
+<!--        <module>base</module>-->
         <module>data</module>
         <module>message</module>
+<!--        <module>interfaces</module>-->
         <module>transport</module>
+        <module>utils</module> <!-- # Utility classes (validation, converters, etc.) -->
     </modules>
 
     <properties>
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.dir>${basedir}/..</main.dir>
     </properties>
-
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <release>17</release>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

@@ -1,0 +1,3 @@
+spring:
+  application:
+    name: IoTMining - Common Data Library
