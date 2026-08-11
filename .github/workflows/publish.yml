@@ -1,0 +1,82 @@
+name: Publish
+
+# Publishes all 9 modules to GitHub Packages (this repo), in dependency
+# order. This is the real fix for the reason auth-service's own CI has to
+# check out this repo and build data/base/audit from source instead of
+# just declaring them as normal Maven dependencies - once these are
+# actually published, that workaround can go away.
+#
+# Versioning note, not fully solved here: data/base/interfaces/proto/
+# utils/message/transport are all plain `0.0.1-SNAPSHOT` - safe to publish
+# repeatedly, GitHub Packages treats SNAPSHOT coordinates as mutable.
+# audit/security are already fixed at a real release version (1.0.0), not
+# a SNAPSHOT - re-publishing to that exact coordinate after it has already
+# been published once is only reliably safe if the content is identical;
+# most registries reject re-publishing a *changed* non-SNAPSHOT version
+# under the same coordinate. Bumping to a real 1.0.1/2.0.0 scheme on
+# meaningful changes is a real versioning-strategy decision the team
+# should make deliberately - see TODO.md - not something to default into
+# silently in a workflow.
+#
+# REQUIRES a repo secret PLATFORM_REPO_TOKEN with read:packages on
+# iiotedge/platform-build (to resolve iiotedge-parent) and write:packages
+# on this repo (to publish here). Untested against a live runner -
+# verified locally as far as `mvn install` for every module (deploy itself
+# needs real GitHub Packages credentials this environment doesn't have).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Write GitHub Packages settings.xml
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.PLATFORM_REPO_TOKEN }}
+        run: |
+          SETTINGS="$RUNNER_TEMP/gpr-settings.xml"
+          cat > "$SETTINGS" <<XML
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GH_ACTOR}</username>
+                <password>${GH_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
+          echo "GPR_SETTINGS=$SETTINGS" >> "$GITHUB_ENV"
+
+      # Install-then-deploy per module (not just deploy) so each later
+      # module in the dependency chain resolves the just-published version
+      # of the earlier ones from the local repo, the same ordering
+      # discipline platform-build's own release workflow uses.
+      - name: Build & publish modules (dependency order)
+        run: |
+          for m in data base interfaces utils proto audit security message transport; do
+            echo "::group::Publishing $m"
+            mvn -B -s "$GPR_SETTINGS" -f "$m/pom.xml" clean deploy -DskipTests
+            echo "::endgroup::"
+          done

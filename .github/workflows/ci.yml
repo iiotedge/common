@@ -1,0 +1,67 @@
+name: CI
+
+# Builds each of the 9 modules independently, in the order that matters
+# (data -> base -> interfaces have real inter-module dependencies; the
+# rest are independent). There's no aggregator reactor here on purpose -
+# the previous common-local aggregator pom.xml was removed because none of
+# the modules actually parented off it anyway, so it wasn't providing real
+# reactor grouping.
+#
+# REQUIRES a repo secret PLATFORM_REPO_TOKEN - a PAT (classic or
+# fine-grained) with read:packages on iiotedge/platform-build, since every
+# module's parent (iiotedge-parent) now resolves from there over the
+# network instead of a local checkout.
+#
+# Untested against a live runner - verified locally (all 9 modules, `mvn
+# clean install`, plus both real downstream consumers - auth-service and
+# tenant-management-service - re-verified against the resulting jars).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Write GitHub Packages settings.xml
+        env:
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.PLATFORM_REPO_TOKEN }}
+        run: |
+          SETTINGS="$RUNNER_TEMP/gpr-settings.xml"
+          cat > "$SETTINGS" <<XML
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${GH_ACTOR}</username>
+                <password>${GH_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
+          echo "GPR_SETTINGS=$SETTINGS" >> "$GITHUB_ENV"
+
+      - name: Build modules (dependency order)
+        run: |
+          for m in data base interfaces utils proto audit security message transport; do
+            echo "::group::Building $m"
+            mvn -B -s "$GPR_SETTINGS" -f "$m/pom.xml" clean install
+            echo "::endgroup::"
+          done

@@ -1,8 +1,0 @@
-com.iotmining.common.base.config
-com.iotmining.common.base.context
-com.iotmining.common.base.ddl.cassandra
-com.iotmining.common.base.filter
-com.iotmining.common.base.notifications
-com.iotmining.common.base.notifications.dto
-com.iotmining.common.base.notifications.dto.payload
-com.iotmining.common.base.notifications.enums

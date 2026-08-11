@@ -4,5 +4,6 @@ public enum NotificationType {
     TELEGRAM,
     SMS,
     PUSH,
-    WEB
+    WEB,
+    EMAIL
 }

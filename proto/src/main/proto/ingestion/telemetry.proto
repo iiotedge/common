@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package iotmining.ingestion.v1;
+
+// Import Google's well-known types for Time and JSON-like structures
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option java_multiple_files = true;
+// This matches your Java package structure for the generated code
+option java_package = "com.iotmining.common.proto.ingestion";
+option java_outer_classname = "TelemetryProto";
+
+// The Generic Industry Standard Packet
+message TelemetryPacket {
+  // --- HEADER ---
+  string message_id = 1;
+  string tenant_id = 2;
+  string device_id = 3;
+
+  // Event Time (Device Time)
+  google.protobuf.Timestamp timestamp = 4;
+
+  // --- PAYLOAD (Generic Map<String, Object>) ---
+  // Struct allows flexible JSON payloads without breaking schema
+  google.protobuf.Struct data = 5;
+
+  // --- METADATA ---
+  map<string, string> metadata = 6;
+
+  // --- ENRICHMENT (Added by Normalizer) ---
+  google.protobuf.Timestamp processed_at = 7;
+  string processing_node = 8;
+  int64 latency_ms = 9;
+
+  // --- NEW FIELD (For Data Type: "g", "e", "default") ---
+  // This solves your Compilation Error
+  string type = 10;
+}

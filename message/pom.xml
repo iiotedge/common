@@ -3,12 +3,38 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
+
+    <!-- Fixed a broken parent reference (previously pointed at
+         ../../bck/pom.xml, a file with its entire <project> commented out -
+         this module could never have built). No source exists in this
+         module yet (src/ is empty) - see TODO.md. -->
     <parent>
-        <groupId>com.iotmining</groupId>
-        <artifactId>common</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <groupId>com.iiotedge.build</groupId>
+        <artifactId>iiotedge-parent</artifactId>
+        <version>2025.08.18</version>
+        <relativePath/>
     </parent>
+
+    <repositories>
+        <repository>
+            <id>github</id>
+            <url>https://maven.pkg.github.com/iiotedge/platform-build</url>
+        </repository>
+    </repositories>
+
+    <!-- Publish target: GitHub Packages, this repo -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/iiotedge/common</url>
+        </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Packages (Snapshots)</name>
+            <url>https://maven.pkg.github.com/iiotedge/common</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <groupId>com.iotmining.common</groupId>
     <artifactId>message</artifactId>
@@ -16,23 +42,4 @@
     <packaging>jar</packaging>
     <name>IoTMining Server - Common Messages</name>
 
-    <properties>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-    <build>
-        <plugins>
-            <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.10.1</version>
-                <configuration>
-                    <source>17</source>
-                    <target>17</target>
-                    <release>17</release>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>

@@ -14,4 +14,3 @@ public class WebSocketPayload {
     private String type;
     private String url;
 }
-

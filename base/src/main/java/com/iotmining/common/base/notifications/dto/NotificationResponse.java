@@ -14,6 +14,7 @@ import java.util.UUID;
 public class NotificationResponse{
     private String channel;
     private boolean delivered;
+    @Builder.Default
     private Instant timestamp = Instant.now();
     private String message;
     private NotificationStatus status;

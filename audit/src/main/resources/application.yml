@@ -1,0 +1,6 @@
+## USAGE ::
+#iiotedge:
+#  audit:
+#    enabled: true
+#    application-name: "device-service"
+#    kafka-topic: "audit.logs.v1"
