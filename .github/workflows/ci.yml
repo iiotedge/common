@@ -1,67 +1,196 @@
 name: CI
 
-# Builds each of the 9 modules independently, in the order that matters
-# (data -> base -> interfaces have real inter-module dependencies; the
-# rest are independent). There's no aggregator reactor here on purpose -
-# the previous common-local aggregator pom.xml was removed because none of
-# the modules actually parented off it anyway, so it wasn't providing real
-# reactor grouping.
+# Builds and tests the nine modules in dependency order (data -> base ->
+# interfaces; the rest are independent) on pull requests and on main. On
+# main the publish job then deploys them to GitHub Packages, where service
+# builds resolve them. Draft pull requests are skipped until they are marked
+# ready for review. A release version (audit, security: 1.0.0) that is
+# already published is skipped, because GitHub Packages rejects a second
+# upload of a release version; SNAPSHOT versions are republished.
 #
-# REQUIRES a repo secret PLATFORM_REPO_TOKEN - a PAT (classic or
-# fine-grained) with read:packages on iiotedge/platform-build, since every
-# module's parent (iiotedge-parent) now resolves from there over the
-# network instead of a local checkout.
-#
-# Untested against a live runner - verified locally (all 9 modules, `mvn
-# clean install`, plus both real downstream consumers - auth-service and
-# tenant-management-service - re-verified against the resulting jars).
+# iiotedge-parent comes from GitHub Packages and is read with this
+# repository's GITHUB_TOKEN. To build against a parent that is not published
+# yet, set PLATFORM_BUILD_REF to a branch, tag or commit of
+# iiotedge/platform-build.
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ['**/*.md', 'LICENSE', '.gitignore', '.gitattributes']
   push:
     branches: [main]
-  pull_request:
+    paths-ignore: ['**/*.md', 'LICENSE', '.gitignore', '.gitattributes']
   workflow_dispatch: {}
 
+permissions: {}
+
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Never interrupt a publish half way through the modules.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  MODULES: data base interfaces utils proto audit security message transport
+  PLATFORM_BUILD_REF: ''
+  MAVEN_VERSION: 3.9.16
+  MAVEN_SHA512: 831a8591fe20c8243b1dbe7d71e3244f31d1665b0804b2e825e38cbbe5ce0cafb8338851f90780735568773e0a6cd07bbec107cda0b896b008b861075358b6f6
 
 jobs:
   build:
+    name: Build and test
+    # Draft pull requests do not use Actions minutes; marking one ready runs it.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Setup Java 21
-        uses: actions/setup-java@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '21'
           cache: maven
+          # Names environment variables only; the token is passed to Maven below.
+          server-id: github
+          server-username-env-var: GITHUB_ACTOR
+          server-password-env-var: GITHUB_TOKEN
 
-      - name: Write GitHub Packages settings.xml
+      - name: Set up Maven ${{ env.MAVEN_VERSION }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          curl -fsSL --retry 3 -o "$archive" \
+            "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${MAVEN_VERSION}/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          echo "${MAVEN_SHA512}  ${archive}" | sha512sum --check --quiet
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-${MAVEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build iiotedge-bom and iiotedge-parent from source
+        if: env.PLATFORM_BUILD_REF != ''
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/src/platform-build"
+          git init --quiet "$dir"
+          git -C "$dir" fetch --quiet --depth 1 https://github.com/iiotedge/platform-build.git "$PLATFORM_BUILD_REF"
+          git -C "$dir" -c advice.detachedHead=false checkout --quiet FETCH_HEAD
+          echo "iiotedge/platform-build ${PLATFORM_BUILD_REF} at $(git -C "$dir" rev-parse HEAD)"
+          mvn -B -ntp -f "$dir/iiotedge-bom/pom.xml" install -Denforcer.skip=true
+          mvn -B -ntp -f "$dir/iiotedge-parent/pom.xml" install -Denforcer.skip=true
+
+      - name: Build and test modules (dependency order)
         env:
-          GH_ACTOR: ${{ github.actor }}
-          GH_TOKEN: ${{ secrets.PLATFORM_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SETTINGS="$RUNNER_TEMP/gpr-settings.xml"
-          cat > "$SETTINGS" <<XML
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${GH_ACTOR}</username>
-                <password>${GH_TOKEN}</password>
-              </server>
-            </servers>
-          </settings>
-          XML
-          echo "GPR_SETTINGS=$SETTINGS" >> "$GITHUB_ENV"
-
-      - name: Build modules (dependency order)
-        run: |
-          for m in data base interfaces utils proto audit security message transport; do
-            echo "::group::Building $m"
-            mvn -B -s "$GPR_SETTINGS" -f "$m/pom.xml" clean install
+          set -euo pipefail
+          for m in $MODULES; do
+            echo "::group::$m"
+            mvn -B -ntp -f "$m/pom.xml" install
             echo "::endgroup::"
           done
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports
+          path: |
+            */target/surefire-reports/
+            */target/failsafe-reports/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Keep internal artifacts out of the Maven cache
+        if: always()
+        run: rm -rf "$HOME/.m2/repository/com/iiotedge" "$HOME/.m2/repository/com/iotmining"
+
+  publish:
+    name: Publish to GitHub Packages
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          server-id: github
+          server-username-env-var: GITHUB_ACTOR
+          server-password-env-var: GITHUB_TOKEN
+
+      - name: Set up Maven ${{ env.MAVEN_VERSION }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          curl -fsSL --retry 3 -o "$archive" \
+            "https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/${MAVEN_VERSION}/apache-maven-${MAVEN_VERSION}-bin.tar.gz"
+          echo "${MAVEN_SHA512}  ${archive}" | sha512sum --check --quiet
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-${MAVEN_VERSION}/bin" >> "$GITHUB_PATH"
+
+      - name: Build iiotedge-bom and iiotedge-parent from source
+        if: env.PLATFORM_BUILD_REF != ''
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/src/platform-build"
+          git init --quiet "$dir"
+          git -C "$dir" fetch --quiet --depth 1 https://github.com/iiotedge/platform-build.git "$PLATFORM_BUILD_REF"
+          git -C "$dir" -c advice.detachedHead=false checkout --quiet FETCH_HEAD
+          echo "iiotedge/platform-build ${PLATFORM_BUILD_REF} at $(git -C "$dir" rev-parse HEAD)"
+          mvn -B -ntp -f "$dir/iiotedge-bom/pom.xml" install -Denforcer.skip=true
+          mvn -B -ntp -f "$dir/iiotedge-parent/pom.xml" install -Denforcer.skip=true
+
+      # Tests already passed in the build job for this commit.
+      - name: Deploy modules (dependency order)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          skip_checks="-DskipTests -Djacoco.skip=true -Dspotbugs.skip=true"
+          for m in $MODULES; do
+            read -r group artifact version < <(python3 -c '
+          import sys, xml.etree.ElementTree as ET
+          ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+          root = ET.parse(sys.argv[1]).getroot()
+          def text(path):
+              e = root.find(path, ns)
+              return (e.text or "").strip() if e is not None else ""
+          print(text("m:groupId") or text("m:parent/m:groupId"), text("m:artifactId"), text("m:version") or text("m:parent/m:version"))
+          ' "$m/pom.xml")
+            echo "::group::$m ($group:$artifact:$version)"
+            if [[ "$version" != *-SNAPSHOT ]]; then
+              url="https://maven.pkg.github.com/${GITHUB_REPOSITORY}/${group//.//}/${artifact}/${version}/${artifact}-${version}.pom"
+              code=$(curl -s -o /dev/null -w '%{http_code}' -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" "$url")
+              if [[ "$code" == 200 || "$code" == 302 ]]; then
+                echo "$group:$artifact:$version is already published; installing it locally only."
+                # shellcheck disable=SC2086 # skip_checks is a list of flags
+                mvn -B -ntp -f "$m/pom.xml" install $skip_checks
+                echo "::endgroup::"
+                continue
+              fi
+            fi
+            # shellcheck disable=SC2086
+            mvn -B -ntp -f "$m/pom.xml" deploy $skip_checks
+            echo "::endgroup::"
+          done
+
+      - name: Keep internal artifacts out of the Maven cache
+        if: always()
+        run: rm -rf "$HOME/.m2/repository/com/iiotedge" "$HOME/.m2/repository/com/iotmining"
