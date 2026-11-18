@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.iiotedge.build</groupId>
         <artifactId>iiotedge-parent</artifactId>
-        <version>2025.08.18</version>
+        <version>2026.11.18</version>
         <relativePath/>
     </parent>
 
@@ -35,12 +35,12 @@
     <groupId>com.iotmining.common</groupId>
     <artifactId>base</artifactId>
     <!-- Explicit, not inherited: a child with no <version> inherits the
-         PARENT's version by default - since the parent is now
-         iiotedge-parent:2025.08.18, omitting this would silently make
-         base's own version 2025.08.18 too, breaking every consuming
-         service's explicit `<version>0.0.1-SNAPSHOT</version>` dependency
+         PARENT's version by default - since the parent is iiotedge-parent
+         (a date version such as 2026.11.18), omitting this would silently
+         make base's own version that date too, breaking every consuming
+         service's explicit `<version>0.0.x-SNAPSHOT</version>` dependency
          reference (e.g. auth-service's pom.xml). -->
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>IoTMining Server - Common Base</name>
 

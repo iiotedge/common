@@ -5,7 +5,7 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +31,7 @@ public class AuditAutoConfiguration {
     @ConditionalOnMissingBean(name = "auditProducerFactory")
     public ProducerFactory<String, Object> auditProducerFactory(KafkaProperties kafkaProperties) {
         // Get standard properties from application.yml (bootstrap-servers, etc.)
-        Map<String, Object> configProps = new HashMap<>(kafkaProperties.buildProducerProperties(null));
+        Map<String, Object> configProps = new HashMap<>(kafkaProperties.buildProducerProperties());
 
         // Force Key = String, Value = JSON (Critical for Object logging)
         configProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);

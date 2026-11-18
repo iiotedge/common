@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.iiotedge.build</groupId>
         <artifactId>iiotedge-parent</artifactId>
-        <version>2025.08.18</version>
+        <version>2026.11.18</version>
         <relativePath/>
     </parent>
 
@@ -38,7 +38,7 @@
 
     <groupId>com.iiotedge</groupId>
     <artifactId>iiotedge-audit-starter</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
     <name>iiotedge-audit-starter</name>
@@ -50,19 +50,25 @@
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
+        <!-- Spring Boot 4 renamed spring-boot-starter-aop to spring-boot-starter-aspectj. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-aop</artifactId>
+            <artifactId>spring-boot-starter-aspectj</artifactId>
+        </dependency>
+
+        <!-- The starter, not bare spring-kafka: Boot 4 moved KafkaProperties and the
+             Kafka auto-configuration into spring-boot-kafka, which a plain spring-kafka
+             dependency no longer brings. This keeps consuming services' own Kafka
+             auto-configuration (KafkaTemplate, @KafkaListener) working as it did on
+             Boot 3, where spring-kafka on the classpath was enough. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-kafka</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>org.springframework.kafka</groupId>
-            <artifactId>spring-kafka</artifactId>
-        </dependency>
-
-        <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -77,6 +83,16 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <!-- AuditEvent is written with Spring Kafka's Jackson 2 JsonSerializer, which
+             registers JavaTimeModule only when it is on the classpath. Boot 3's
+             spring-boot-starter-json brought it transitively; Boot 4's Jackson 3
+             starter does not, and without it every Instant timestamp fails to
+             serialize (the aspect then logs and drops the event). Declared explicitly
+             so the payload format (epoch-second timestamps) is unchanged. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
         </dependency>
     </dependencies>
 </project>

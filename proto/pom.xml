@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.iiotedge.build</groupId>
         <artifactId>iiotedge-parent</artifactId>
-        <version>2025.08.18</version>
+        <version>2026.11.18</version>
         <relativePath/>
     </parent>
 
@@ -34,11 +34,11 @@
 
     <!-- Explicit groupId/version, not inherited: without them a child
          inherits BOTH from the parent, which would wrongly make this
-         com.iiotedge.build:proto:2025.08.18 instead of matching its
+         com.iiotedge.build:proto:<parent date version> instead of matching its
          siblings under com.iotmining.common. -->
     <groupId>com.iotmining.common</groupId>
     <artifactId>proto</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>IoTMining Server - Common Proto</name>
 
