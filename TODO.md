@@ -70,9 +70,10 @@ Known gaps, prioritized. See `CHECKLIST.md` for the full done/open list.
 ## Consistency
 
 - [ ] `data`, `base`, `interfaces`, `proto`, `utils`, `message`, `transport`
-      are still versioned as plain `0.0.1-SNAPSHOT` (matching how
-      auth-service's pom.xml currently references them) - worth deciding
-      whether these should eventually get real, independent version
-      numbers once they're actually published, the same way
+      are still versioned as plain SNAPSHOTs (`0.0.2-SNAPSHOT` for the Spring
+      Boot 4 generation, `0.0.1-SNAPSHOT` before it - see README "Versions",
+      matching how the consuming services' pom.xml files reference them) -
+      worth deciding whether these should eventually get real, independent
+      version numbers once they're actually published, the same way
       `iiotedge-audit-starter`/`iiotedge-security-starter` already do
-      (real `1.0.0`, not a perpetual SNAPSHOT).
+      (real `2.0.0`, not a perpetual SNAPSHOT).

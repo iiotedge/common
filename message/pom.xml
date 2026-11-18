@@ -11,7 +11,7 @@
     <parent>
         <groupId>com.iiotedge.build</groupId>
         <artifactId>iiotedge-parent</artifactId>
-        <version>2025.08.18</version>
+        <version>2026.11.18</version>
         <relativePath/>
     </parent>
 
@@ -38,7 +38,7 @@
 
     <groupId>com.iotmining.common</groupId>
     <artifactId>message</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>IoTMining Server - Common Messages</name>
 
